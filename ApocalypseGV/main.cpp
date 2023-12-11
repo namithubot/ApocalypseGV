@@ -48,6 +48,7 @@ typedef struct
 
 using namespace std;
 GLuint shaderProgramID, shaderProgramIDUntextured;
+unsigned int vp_vbo[2], vn_vbo[2], vt_vbo[2], vao[2];
 
 ModelData mesh_data;
 unsigned int mesh_vao = 0;
@@ -243,34 +244,36 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 	//Note: you may get an error "vector subscript out of range" if you are using this code for a mesh that doesnt have positions and normals
 	//Might be an idea to do a check for that before generating and binding the buffer.
 
+	int idx = mesh_name.find("model") != std::string::npos ? 0 : 1;
+
 	mesh_data = load_mesh(mesh_name.c_str());
-	unsigned int vp_vbo = 0;
+	vp_vbo[idx] = 0;
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
 	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
 	loc3 = glGetAttribLocation(shaderProgramID, "vertex_texture");
 
-	glGenBuffers(1, &vp_vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
+	glGenBuffers(1, &vp_vbo[idx]);
+	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[idx]);
 	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
-	unsigned int vn_vbo = 0;
-	glGenBuffers(1, &vn_vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
+	vn_vbo[idx] = 0;
+	glGenBuffers(1, &vn_vbo[idx]);
+	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[idx]);
 	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
 
 	//	This is for texture coordinates which you don't currently need, so I have commented it out
-	unsigned int vt_vbo = 0;
-	glGenBuffers (1, &vt_vbo);
-	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
+	vt_vbo[idx] = 0;
+	glGenBuffers (1, &vt_vbo[idx]);
+	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo[idx]);
 	glBufferData (GL_ARRAY_BUFFER, mesh_data.mTextureCoords.size() * sizeof (vec2), &mesh_data.mTextureCoords[0], GL_STATIC_DRAW);
 
-	unsigned int vao = 0;
-	glBindVertexArray(vao);
+	vao[idx] = 0;
+	glBindVertexArray(vao[idx]);
 
 	glEnableVertexAttribArray(loc1);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[idx]);
 	glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 	glEnableVertexAttribArray(loc2);
-	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[idx]);
 	glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
 	unsigned int texture;
@@ -301,13 +304,17 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 
 	//	This is for texture coordinates which you don't currently need, so I have commented it out
 	glEnableVertexAttribArray (loc3);
-	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
+	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo[idx]);
 	glVertexAttribPointer (loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 }
 #pragma endregion VBO_FUNCTIONS
 
 
 void display() {
+	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[0]);
+	glBindVertexArray(vao[0]);
 
 	// tell GL to only draw onto a pixel if the shape is closer to the viewer
 	glEnable(GL_DEPTH_TEST); // enable depth-testing
@@ -343,19 +350,24 @@ void display() {
 	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
 
 
+	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[1]);
+	glBindVertexArray(vao[1]);
+
 	//glUseProgram(shaderProgramIDUntextured);
 	//// Set up the child matrix
-	//mat4 modelChild = identity_mat4();
-	////modelChild = rotate_z_deg(modelChild, 180);
-	//modelChild = rotate_y_deg(modelChild, rotate_y_2);
-	//modelChild = translate(modelChild, vec3(ship1_pos.v[0] + 8.0f, ship1_pos.v[1], ship1_pos.v[2] + 20.0f));
+	mat4 modelChild = identity_mat4();
+	//modelChild = rotate_z_deg(modelChild, 180);
+	modelChild = rotate_y_deg(modelChild, rotate_y_2);
+	modelChild = translate(modelChild, vec3(ship1_pos.v[0] + 8.0f, ship1_pos.v[1], ship1_pos.v[2] + 20.0f));
 
-	//// Apply the root matrix to the child matrix
-	//modelChild = model * modelChild;
+	// Apply the root matrix to the child matrix
+	modelChild = model * modelChild;
 
-	////// Update the appropriate uniform and draw the mesh again
-	//glUniformMatrix4fv(matrix_location, 1, GL_FALSE, modelChild.m);
-	//glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
+	//// Update the appropriate uniform and draw the mesh again
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, modelChild.m);
+	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
 
 	glutSwapBuffers();
 }
@@ -387,8 +399,8 @@ void init()
 
 
 	// load mesh into a vertex buffer array
-	generateObjectBufferMesh("ocean_normal.png");
 	generateObjectBufferMesh("model2.jpg", "model.obj");
+	generateObjectBufferMesh("ocean_normal.png");
 
 }
 
