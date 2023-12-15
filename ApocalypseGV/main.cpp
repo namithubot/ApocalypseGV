@@ -31,37 +31,59 @@ MESH TO LOAD
 ----------------------------------------------------------------------------*/
 // this mesh is a dae file format but you should be able to use any other format too, obj is typically what is used
 // put the mesh in your project directory, or provide a filepath for it here
-#define MESH_NAME "ocean_low.obj"
+#define MESH_NAME "boat.dae"
 /*----------------------------------------------------------------------------
 ----------------------------------------------------------------------------*/
 
 #pragma region SimpleTypes
-
 typedef struct
 {
-	size_t mPointCount = 0;
 	std::vector<vec3> mVertices;
 	std::vector<vec3> mNormals;
 	std::vector<vec2> mTextureCoords;
+	unsigned int materialIndex;
+} MeshData;
+
+typedef struct
+{
+	vec3 mAmbient;
+	vec3 mDiffuse;
+	vec3 mSpec;
+	GLfloat mReflectiveIndex;
+	std::string mTextureFiles;
+	bool hasTexture;
+
+} MaterialData;
+
+typedef struct
+{
+	std::vector<MeshData> mMeshData;
+	std::vector<MaterialData> mMaterialData;
 } ModelData;
+
 #pragma endregion SimpleTypes
 
 using namespace std;
 GLuint shaderProgramID, shaderProgramIDUntextured;
-unsigned int vp_vbo[2], vn_vbo[2], vt_vbo[2], vao[2];
+#define MAX_NUM_BUFFER 100
+unsigned int vp_vbo[MAX_NUM_BUFFER], vn_vbo[MAX_NUM_BUFFER], vt_vbo[MAX_NUM_BUFFER], vao[MAX_NUM_BUFFER];
+unsigned int current_buffer_size = 0;
+unsigned char* imag_data[MAX_NUM_BUFFER];
+GLuint textures[MAX_NUM_BUFFER];
 
-ModelData mesh_data;
+ModelData mesh_data[2];
 unsigned int mesh_vao = 0;
 int width = 800;
 int height = 600;
 
 GLuint loc1, loc2, loc3;
-GLfloat rotate_y_2 = 0.0f, rotate_y = -45.0f;
-GLfloat rotate_z = -140.0f;
-GLfloat rotate_x = -45.0f, camera_rotation = 0.0f;
-vec3 ship1_pos = vec3(0.0f, 0.0f, -20.0f);
-vec3 ship1_scale = vec3(0.003f, 0.003f, 0.003f);
-vec3 ship1_uscale = vec3(1.0f, 1.0f, 1.0f);
+GLfloat rotate_x_2 = 0.0f, rotate_y = -45.0f;
+GLfloat rotate_z = -145.0f;
+GLfloat rotate_x = -55.0f, camera_rotation = 0.0f;
+vec3 ship1_pos = vec3(0.0f, -5.0f, -20.0f);
+vec3 ship1_scale = vec3(2.0f, 2.0f, 2.0f);
+vec3 wave_scale = vec3(0.2f, 0.2f, 0.2f);
+vec3 boat_pos_loc = vec3(0.0f, 20.0f, 3.0f);
 GLfloat fovy = 45.0f;
 vec3 camera_position = vec3(0.0f, 0.0f, 15.0f), target_position = vec3(0.0f, 0.0f, -20.0f);
 const vec3 camera_up = vec3(0.0f, 1.0f, 0.0f);
@@ -97,19 +119,19 @@ ModelData load_mesh(const char* file_name) {
 	for (unsigned int m_i = 0; m_i < scene->mNumMeshes; m_i++) {
 		const aiMesh* mesh = scene->mMeshes[m_i];
 		printf("    %i vertices in mesh\n", mesh->mNumVertices);
-		modelData.mPointCount += mesh->mNumVertices;
+		MeshData mesh_data;
 		for (unsigned int v_i = 0; v_i < mesh->mNumVertices; v_i++) {
 			if (mesh->HasPositions()) {
 				const aiVector3D* vp = &(mesh->mVertices[v_i]);
-				modelData.mVertices.push_back(vec3(vp->x, vp->y, vp->z));
+				mesh_data.mVertices.push_back(vec3(vp->x, vp->y, vp->z));
 			}
 			if (mesh->HasNormals()) {
 				const aiVector3D* vn = &(mesh->mNormals[v_i]);
-				modelData.mNormals.push_back(vec3(vn->x, vn->y, vn->z));
+				mesh_data.mNormals.push_back(vec3(vn->x, vn->y, vn->z));
 			}
 			if (mesh->HasTextureCoords(0)) {
 				const aiVector3D* vt = &(mesh->mTextureCoords[0][v_i]);
-				modelData.mTextureCoords.push_back(vec2(vt->x, vt->y));
+				mesh_data.mTextureCoords.push_back(vec2(vt->x, vt->y));
 			}
 			if (mesh->HasTangentsAndBitangents()) {
 				/* You can extract tangents and bitangents here              */
@@ -117,12 +139,41 @@ ModelData load_mesh(const char* file_name) {
 				/* data for you. Take a look at the flags that aiImportFile  */
 				/* can take.                                                 */
 			}
+
+			mesh_data.materialIndex = mesh->mMaterialIndex;
 		}
+
+		modelData.mMeshData.push_back(mesh_data);
 	}
 
 	for (unsigned int m_i = 0; m_i < scene->mNumMaterials; m_i++) {
 		const aiMaterial* material = scene->mMaterials[m_i];
-		std::cout << material;
+		MaterialData material_data;
+
+		aiColor3D ambient, diffuse, specular;
+
+		material->Get(AI_MATKEY_COLOR_AMBIENT, ambient);
+		material_data.mAmbient = vec3(ambient.r, ambient.g, ambient.b);
+
+		material->Get(AI_MATKEY_COLOR_AMBIENT, specular);
+		material_data.mAmbient = vec3(specular.r, specular.g, specular.b);
+
+
+		material->Get(AI_MATKEY_COLOR_AMBIENT, diffuse);
+		material_data.mAmbient = vec3(diffuse.r, diffuse.g, diffuse.b);
+
+		float reflective_index;
+		material->Get(AI_MATKEY_SHININESS, reflective_index);
+		material_data.mReflectiveIndex = reflective_index;
+
+		aiString path;
+		material->GetTexture(aiTextureType_DIFFUSE, 0, &path, NULL, NULL, NULL, NULL, NULL);
+		printf(path.C_Str());
+		std::string file(path.C_Str());
+		material_data.mTextureFiles = file;
+		material_data.hasTexture = file.empty();
+
+		modelData.mMaterialData.push_back(material_data);
 	}
 
 	aiReleaseImport(scene);
@@ -246,80 +297,149 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 
 	int idx = mesh_name.find("model") != std::string::npos ? 0 : 1;
 
-	mesh_data = load_mesh(mesh_name.c_str());
+	mesh_data[idx] = mesh_data[idx].mMeshData.size() == 0 ? load_mesh(mesh_name.c_str()) : mesh_data[idx];
 	vp_vbo[idx] = 0;
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
 	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
 	loc3 = glGetAttribLocation(shaderProgramID, "vertex_texture");
 
-	glGenBuffers(1, &vp_vbo[idx]);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[idx]);
-	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
-	vn_vbo[idx] = 0;
-	glGenBuffers(1, &vn_vbo[idx]);
-	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[idx]);
-	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
-
-	//	This is for texture coordinates which you don't currently need, so I have commented it out
-	vt_vbo[idx] = 0;
-	glGenBuffers (1, &vt_vbo[idx]);
-	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo[idx]);
-	glBufferData (GL_ARRAY_BUFFER, mesh_data.mTextureCoords.size() * sizeof (vec2), &mesh_data.mTextureCoords[0], GL_STATIC_DRAW);
-
-	vao[idx] = 0;
-	glBindVertexArray(vao[idx]);
-
-	glEnableVertexAttribArray(loc1);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[idx]);
-	glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-	glEnableVertexAttribArray(loc2);
-	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[idx]);
-	glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-
-	unsigned int texture;
-	glGenTextures(1, &texture);
-	glBindTexture(GL_TEXTURE_2D, texture);
-	// set the texture wrapping/filtering options (on the currently bound texture object)
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// load and generate the texture
-	int width, height, nrChannels;
-	unsigned char* data = stbi_load(texture_file_name, &width, &height, &nrChannels, 0);
-	if (data)
+	for (MeshData mesh : mesh_data[idx].mMeshData)
 	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
+		glGenBuffers(1, &vp_vbo[current_buffer_size]);
+		glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[current_buffer_size]);
+		glBufferData(GL_ARRAY_BUFFER, mesh.mVertices.size() * sizeof(vec3), &mesh.mVertices[0], GL_STATIC_DRAW);
+		vn_vbo[current_buffer_size] = 0;
+		glGenBuffers(1, &vn_vbo[current_buffer_size]);
+		glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[current_buffer_size]);
+		glBufferData(GL_ARRAY_BUFFER, mesh.mNormals.size() * sizeof(vec3), &mesh.mNormals[0], GL_STATIC_DRAW);
+
+		//	This is for texture coordinates which you don't currently need, so I have commented it out
+		vt_vbo[current_buffer_size] = 0;
+		glGenBuffers(1, &vt_vbo[current_buffer_size]);
+		glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[current_buffer_size]);
+		glBufferData(GL_ARRAY_BUFFER, mesh.mTextureCoords.size() * sizeof(vec2), &mesh.mTextureCoords[0], GL_STATIC_DRAW);
+
+		vao[current_buffer_size] = 0;
+		glBindVertexArray(vao[current_buffer_size]);
+
+		glEnableVertexAttribArray(loc1);
+		glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[current_buffer_size]);
+		glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+		glEnableVertexAttribArray(loc2);
+		glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[current_buffer_size]);
+		glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		glGenTextures(1, &textures[current_buffer_size]);
+		glBindTexture(GL_TEXTURE_2D, textures[current_buffer_size]);
+		// set the texture wrapping/filtering options (on the currently bound texture object)
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		// load and generate the texture
+		int width, height, nrChannels;
+		if (mesh_data[idx].mMaterialData[mesh.materialIndex].hasTexture)
+		{
+			cout << mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles << std::endl;
+			texture_file_name = mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles.c_str();
+		}
+		imag_data[current_buffer_size] = stbi_load(texture_file_name, &width, &height, &nrChannels, 0);
+		if (imag_data[current_buffer_size])
+		{
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, imag_data[current_buffer_size]);
+			glGenerateMipmap(GL_TEXTURE_2D);
+		}
+		else
+		{
+			std::cout << "Failed to load texture " << texture_file_name << std::endl;
+		}
+		stbi_image_free(imag_data[current_buffer_size]);
+
+		glVertexAttribPointer(loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+		glEnableVertexAttribArray(loc3);
+
+
+		//	This is for texture coordinates which you don't currently need, so I have commented it out
+		glEnableVertexAttribArray(loc3);
+		glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[current_buffer_size]);
+		glVertexAttribPointer(loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+		current_buffer_size++;
+
 	}
-	else
-	{
-		std::cout << "Failed to load texture" << std::endl;
-	}
-	stbi_image_free(data);
-
-	glVertexAttribPointer(loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
-	glEnableVertexAttribArray(loc3);
-
-
-	//	This is for texture coordinates which you don't currently need, so I have commented it out
-	glEnableVertexAttribArray (loc3);
-	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo[idx]);
-	glVertexAttribPointer (loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 }
 #pragma endregion VBO_FUNCTIONS
 
+#pragma region LOAD_BUFFER
+
+void bindBuffer(unsigned int id)
+{
+	glUniform1f(glGetUniformLocation(shaderProgramID, "id"), 1.0f);
+	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
+	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
+	loc3 = glGetAttribLocation(shaderProgramID, "vertex_texture");
+
+	int num_meshes = mesh_data[id].mMeshData.size();
+
+	int location = 0;
+	for (int i = 0; i < id; i++)
+	{
+		location += mesh_data[i].mMeshData.size();
+	}
+
+	for (int i = 0; i < num_meshes; i++)
+	{
+		size_t mat_index = mesh_data[id].mMeshData[i].materialIndex;
+		if (mesh_data[id].mMaterialData[mat_index].hasTexture)
+		{
+			glUniform1f(glGetUniformLocation(shaderProgramID, "id"), 0.0f);
+		}
+
+
+		// glUniform3fv(glGetUniformLocation(shaderProgramID, "Ks"), 1, glm::value_ptr(mesh_data[id].mSpec[mat_index]));
+		// glUniform3fv(glGetUniformLocation(shaderProgramID, "Kd"), 1, glm::value_ptr(mesh_data[id].mDiffuse[mat_index]));
+		// glUniform3fv(glGetUniformLocation(shaderProgramID, "Ka"), 1, glm::value_ptr(mesh_data[id].mAmbient[mat_index]));
+		// glUniform1f(glGetUniformLocation(shaderProgramID, "specular_exponent"), mesh_data[id].mSpecExp[mat_index]);
+
+		glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[location + i]);
+		glBufferData(GL_ARRAY_BUFFER, mesh_data[id].mMeshData[i].mVertices.size() * sizeof(vec3), &mesh_data[id].mMeshData[i].mVertices[0], GL_STATIC_DRAW);
+
+		glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[location + i]);
+		glBufferData(GL_ARRAY_BUFFER, mesh_data[id].mMeshData[i].mNormals.size() * sizeof(vec3), &mesh_data[id].mMeshData[i].mNormals[0], GL_STATIC_DRAW);
+
+
+
+		glEnableVertexAttribArray(loc1);
+		glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[location + i]);
+		glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		glEnableVertexAttribArray(loc2);
+		glBindBuffer(GL_ARRAY_BUFFER, vn_vbo[location + i]);
+		glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+
+		glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[location + i]);
+		glBufferData(GL_ARRAY_BUFFER, mesh_data[id].mMeshData[i].mTextureCoords.size() * sizeof(vec2), &mesh_data[id].mMeshData[i].mTextureCoords[0], GL_STATIC_DRAW);
+
+		glEnableVertexAttribArray(loc3);
+		glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[location + i]);
+		glVertexAttribPointer(loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		glBindTexture(GL_TEXTURE_2D, textures[location + i]);
+
+		glDrawArrays(GL_TRIANGLES, 0, mesh_data[id].mMeshData[i].mVertices.size());
+
+	}
+}
+
+#pragma endregion LOAD_BUFFER
+
 
 void display() {
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[0]);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[0]);
-	glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[0]);
-	glBindVertexArray(vao[0]);
 
 	// tell GL to only draw onto a pixel if the shape is closer to the viewer
 	glEnable(GL_DEPTH_TEST); // enable depth-testing
 	glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
-	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.5f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
 
@@ -328,7 +448,6 @@ void display() {
 	int matrix_location = glGetUniformLocation(shaderProgramID, "model");
 	int view_mat_location = glGetUniformLocation(shaderProgramID, "view");
 	int proj_mat_location = glGetUniformLocation(shaderProgramID, "proj");
-
 
 	// Root of the Hierarchy
 //	mat4 view = identity_mat4();
@@ -347,27 +466,25 @@ void display() {
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
 	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
-	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
-
-
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[1]);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[1]);
-	glBindBuffer(GL_ARRAY_BUFFER, vt_vbo[1]);
-	glBindVertexArray(vao[1]);
+	bindBuffer(0);
 
 	//glUseProgram(shaderProgramIDUntextured);
 	//// Set up the child matrix
 	mat4 modelChild = identity_mat4();
 	//modelChild = rotate_z_deg(modelChild, 180);
-	modelChild = rotate_y_deg(modelChild, rotate_y_2);
-	modelChild = translate(modelChild, vec3(ship1_pos.v[0] + 8.0f, ship1_pos.v[1], ship1_pos.v[2] + 20.0f));
+	modelChild = translate(modelChild,
+		vec3(ship1_pos.v[0] + boat_pos_loc.v[0],
+			ship1_pos.v[1] + boat_pos_loc.v[1],
+			ship1_pos.v[2] + boat_pos_loc.v[2]));
 
 	// Apply the root matrix to the child matrix
 	modelChild = model * modelChild;
+	modelChild = scale(model, wave_scale);
+	modelChild = rotate_z_deg(modelChild, rotate_x_2);
 
 	//// Update the appropriate uniform and draw the mesh again
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, modelChild.m);
-	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
+	bindBuffer(1);
 
 	glutSwapBuffers();
 }
@@ -375,16 +492,16 @@ void display() {
 
 void updateScene() {
 
-	static DWORD last_time = 0;
-	DWORD curr_time = timeGetTime();
-	if (last_time == 0)
-		last_time = curr_time;
-	float delta = (curr_time - last_time) * 0.001f;
-	last_time = curr_time;
+	//static DWORD last_time = 0;
+	//DWORD curr_time = timeGetTime();
+	//if (last_time == 0)
+	//	last_time = curr_time;
+	//float delta = (curr_time - last_time) * 0.001f;
+	//last_time = curr_time;
 
-	// Rotate the model slowly around the y axis at 20 degrees per second
-	rotate_y_2 += 20.0f * delta;
-	rotate_y_2 = fmodf(rotate_y_2, 360.0f);
+	//// Rotate the model slowly around the y axis at 20 degrees per second
+	//rotate_y_2 += 20.0f * delta;
+	//rotate_y_2 = fmodf(rotate_y_2, 360.0f);
 
 	// Draw the next frame
 	glutPostRedisplay();
