@@ -1,11 +1,8 @@
 Model Information:
-* title:	water waves
-* source:	https://sketchfab.com/3d-models/water-waves-142c2596d1944cd0bf4fc1f490c4c248
-* author:	UJWAL CHAUHAN (https://sketchfab.com/xamplle)
+* title:	Birds
+* source:	https://sketchfab.com/3d-models/birds-3a9bb97be78944f9bffc23fb25c2154e
+* author:	Zacxophone (https://sketchfab.com/Zacxophone)
 
 Model License:
-* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
-* requirements:	Author must be credited. Commercial use is allowed.
-
-If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
-This work is based on "water waves" (https://sketchfab.com/3d-models/water-waves-142c2596d1944cd0bf4fc1f490c4c248) by UJWAL CHAUHAN (https://sketchfab.com/xamplle) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* license type:	SKETCHFAB Standard (https://sketchfab.com/licenses)
+* requirements:	Under basic restrictions, use worldwide, on all types of media, commercially or not, and in all types of derivative works

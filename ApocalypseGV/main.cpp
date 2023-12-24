@@ -17,9 +17,12 @@
 #include <assimp/cimport.h> // scene importer
 #include <assimp/scene.h> // collects data
 #include <assimp/postprocess.h> // various extra operations
+#include <assimp/Importer.hpp>
 
 // Project includes
 #include "maths_funcs.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION    
 #include "stb_image.h"
@@ -71,21 +74,24 @@ unsigned int current_buffer_size = 0;
 unsigned char* imag_data[MAX_NUM_BUFFER];
 GLuint textures[MAX_NUM_BUFFER];
 
-ModelData mesh_data[2];
+ModelData mesh_data[3];
 unsigned int mesh_vao = 0;
 int width = 800;
 int height = 600;
 
 GLuint loc1, loc2, loc3;
-GLfloat rotate_x_2 = 0.0f, rotate_y = -45.0f;
-GLfloat rotate_z = -145.0f;
-GLfloat rotate_x = -55.0f, camera_rotation = 0.0f;
-vec3 ship1_pos = vec3(0.0f, -5.0f, -20.0f);
+GLfloat rotate_x_2 = 0.0f, rotate_y = 0.0f;
+GLfloat rotate_water_y = 0.0f, rotate_water_z = 0.0f, rotate_water_x = 0.0f;
+GLfloat rotate_z = 0.0f;
+GLfloat rotate_x = 0.0f, camera_rotation_x = 0.0f, camera_rotation_y = 0.0f;
+vec3 ship1_pos = vec3(1.0f, -4.0f, -20.0f);
 vec3 ship1_scale = vec3(2.0f, 2.0f, 2.0f);
-vec3 wave_scale = vec3(0.2f, 0.2f, 0.2f);
-vec3 boat_pos_loc = vec3(0.0f, 20.0f, 3.0f);
+vec3 boat_scale = vec3(0.25f, 0.25f, 0.25f);
+vec3 boat_pos_loc = vec3(-3.0f, 3.0f, 100.0f);
+vec3 bird_scale = vec3(0.3f, 0.3f, 0.3f);
+vec3 bird_loc = vec3(0.0f, 10.0f, 2.0f);
 GLfloat fovy = 45.0f;
-vec3 camera_position = vec3(0.0f, 0.0f, 15.0f), target_position = vec3(0.0f, 0.0f, -20.0f);
+vec3 camera_position = vec3(0.0f, 7.0f, 5.0f), target_position = vec3(0.0f, 0.0f, -5.0f);
 const vec3 camera_up = vec3(0.0f, 1.0f, 0.0f);
 
 
@@ -104,11 +110,16 @@ ModelData load_mesh(const char* file_name) {
 	/* they're in the right position.                                 */
 	const aiScene* scene = aiImportFile(
 		file_name,
-		aiProcess_Triangulate | aiProcess_PreTransformVertices | aiProcess_GenNormals | aiProcess_OptimizeMeshes
+		aiProcess_Triangulate
+		| aiProcess_PreTransformVertices
+		| aiProcess_GenSmoothNormals
+		| aiProcess_OptimizeMeshes
+		| aiProcess_FlipUVs
 	);
 
 	if (!scene) {
 		fprintf(stderr, "ERROR: reading mesh %s\n", file_name);
+		cout<<"Detailed error: "<<aiGetErrorString()<< endl;;
 		return modelData;
 	}
 
@@ -119,6 +130,7 @@ ModelData load_mesh(const char* file_name) {
 	for (unsigned int m_i = 0; m_i < scene->mNumMeshes; m_i++) {
 		const aiMesh* mesh = scene->mMeshes[m_i];
 		printf("    %i vertices in mesh\n", mesh->mNumVertices);
+		cout << "Bone: " << mesh->HasBones() << std::endl;
 		MeshData mesh_data;
 		for (unsigned int v_i = 0; v_i < mesh->mNumVertices; v_i++) {
 			if (mesh->HasPositions()) {
@@ -171,7 +183,7 @@ ModelData load_mesh(const char* file_name) {
 		printf(path.C_Str());
 		std::string file(path.C_Str());
 		material_data.mTextureFiles = file;
-		material_data.hasTexture = file.empty();
+		material_data.hasTexture = !file.empty();
 
 		modelData.mMaterialData.push_back(material_data);
 	}
@@ -295,7 +307,11 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 	//Note: you may get an error "vector subscript out of range" if you are using this code for a mesh that doesnt have positions and normals
 	//Might be an idea to do a check for that before generating and binding the buffer.
 
-	int idx = mesh_name.find("model") != std::string::npos ? 0 : 1;
+	int idx = 0;
+	if (mesh_name.find("sea") != std::string::npos)
+		idx = 1;
+	if (mesh_name.find("bird") != std::string::npos)
+		idx = 2;
 
 	mesh_data[idx] = mesh_data[idx].mMeshData.size() == 0 ? load_mesh(mesh_name.c_str()) : mesh_data[idx];
 	vp_vbo[idx] = 0;
@@ -343,6 +359,7 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 			cout << mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles << std::endl;
 			texture_file_name = mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles.c_str();
 		}
+		// stbi_set_flip_vertically_on_load(false);
 		imag_data[current_buffer_size] = stbi_load(texture_file_name, &width, &height, &nrChannels, 0);
 		if (imag_data[current_buffer_size])
 		{
@@ -395,10 +412,22 @@ void bindBuffer(unsigned int id)
 		}
 
 
-		// glUniform3fv(glGetUniformLocation(shaderProgramID, "Ks"), 1, glm::value_ptr(mesh_data[id].mSpec[mat_index]));
-		// glUniform3fv(glGetUniformLocation(shaderProgramID, "Kd"), 1, glm::value_ptr(mesh_data[id].mDiffuse[mat_index]));
-		// glUniform3fv(glGetUniformLocation(shaderProgramID, "Ka"), 1, glm::value_ptr(mesh_data[id].mAmbient[mat_index]));
-		// glUniform1f(glGetUniformLocation(shaderProgramID, "specular_exponent"), mesh_data[id].mSpecExp[mat_index]);
+		glUniform3fv(glGetUniformLocation(shaderProgramID, "Ks"), 1,
+			glm::value_ptr(
+				glm::vec3(mesh_data[id].mMaterialData[mat_index].mSpec.v[0],
+					mesh_data[id].mMaterialData[mat_index].mSpec.v[1],
+					mesh_data[id].mMaterialData[mat_index].mSpec.v[2])));
+		glUniform3fv(glGetUniformLocation(shaderProgramID, "Kd"), 1,
+			glm::value_ptr(
+				glm::vec3(mesh_data[id].mMaterialData[mat_index].mDiffuse.v[0],
+					mesh_data[id].mMaterialData[mat_index].mDiffuse.v[1],
+					mesh_data[id].mMaterialData[mat_index].mDiffuse.v[2])));
+		glUniform3fv(glGetUniformLocation(shaderProgramID, "Ka"), 1,
+			glm::value_ptr(
+				glm::vec3(mesh_data[id].mMaterialData[mat_index].mAmbient.v[0],
+					mesh_data[id].mMaterialData[mat_index].mAmbient.v[1],
+					mesh_data[id].mMaterialData[mat_index].mAmbient.v[2])));
+		glUniform1f(glGetUniformLocation(shaderProgramID, "specular_exponent"), mesh_data[id].mMaterialData[mat_index].mReflectiveIndex);
 
 		glBindBuffer(GL_ARRAY_BUFFER, vp_vbo[location + i]);
 		glBufferData(GL_ARRAY_BUFFER, mesh_data[id].mMeshData[i].mVertices.size() * sizeof(vec3), &mesh_data[id].mMeshData[i].mVertices[0], GL_STATIC_DRAW);
@@ -439,7 +468,7 @@ void display() {
 	// tell GL to only draw onto a pixel if the shape is closer to the viewer
 	glEnable(GL_DEPTH_TEST); // enable depth-testing
 	glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
-	glClearColor(0.0f, 0.0f, 0.5f, 1.0f);
+	glClearColor(0.52f, 0.81f, 0.98f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glUseProgram(shaderProgramID);
 
@@ -450,17 +479,20 @@ void display() {
 	int proj_mat_location = glGetUniformLocation(shaderProgramID, "proj");
 
 	// Root of the Hierarchy
-//	mat4 view = identity_mat4();
+	// mat4 view = identity_mat4();
 	mat4 persp_proj = perspective(fovy, (float)width / (float)height, 0.1f, 1000.0f);
-	mat4 view = rotate_y_deg(look_at(camera_position, camera_position + target_position, camera_up), camera_rotation);
 	// persp_proj = camera * persp_proj;
 
 	mat4 model = identity_mat4();
 	model = rotate_y_deg(model, rotate_y);
 	model = rotate_z_deg(model, rotate_z);
 	model = rotate_x_deg(model, rotate_x);
-	view = translate(view, ship1_pos); // vec3(0.0f, 0.0f, -20.0f));
+	mat4 view = translate(view, ship1_pos); // vec3(0.0f, 0.0f, -20.0f));
 	model = scale(model, ship1_scale);
+
+	view = look_at(camera_position, camera_position + target_position, camera_up);
+	view = rotate_y_deg(view, camera_rotation_y);
+	view = rotate_x_deg(view, camera_rotation_x);
 
 	// update uniforms & draw
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
@@ -471,16 +503,11 @@ void display() {
 	//glUseProgram(shaderProgramIDUntextured);
 	//// Set up the child matrix
 	mat4 modelChild = identity_mat4();
-	//modelChild = rotate_z_deg(modelChild, 180);
-	modelChild = translate(modelChild,
-		vec3(ship1_pos.v[0] + boat_pos_loc.v[0],
-			ship1_pos.v[1] + boat_pos_loc.v[1],
-			ship1_pos.v[2] + boat_pos_loc.v[2]));
+	modelChild = translate(modelChild, boat_pos_loc);
 
 	// Apply the root matrix to the child matrix
-	modelChild = model * modelChild;
-	modelChild = scale(model, wave_scale);
-	modelChild = rotate_z_deg(modelChild, rotate_x_2);
+	// modelChild = model * modelChild;
+	modelChild = scale(modelChild, boat_scale);
 
 	//// Update the appropriate uniform and draw the mesh again
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, modelChild.m);
@@ -516,8 +543,9 @@ void init()
 
 
 	// load mesh into a vertex buffer array
-	generateObjectBufferMesh("model2.jpg", "model.obj");
-	generateObjectBufferMesh("ocean_normal.png");
+	generateObjectBufferMesh("boat_texture.jpg", "castle_blended.obj");
+	generateObjectBufferMesh("ocean_normal.png", "sea_tr.obj");
+	generateObjectBufferMesh("boat_texture.jpg", "bird.blend");
 
 }
 
@@ -526,8 +554,10 @@ void keypress(unsigned char key, int x, int y) {
 	switch (key)
 	{
 	case 'o':
-	case 'p': rotate_y += (key == 'o' ? 1 : -1) * 20.0f;
-		rotate_y = fmodf(rotate_y, 360.0f); break;
+	case 'p': 
+		rotate_y += (key == 'o' ? 1 : -1) * 20.0f;
+		rotate_y = fmodf(rotate_y, 360.0f);
+		break;
 	case 'k':
 	case 'l': rotate_z += (key == 'k' ? 1 : -1) * 20.0f;
 		rotate_z = fmodf(rotate_z, 360.0f); break;
@@ -539,7 +569,7 @@ void keypress(unsigned char key, int x, int y) {
 	case 'a':
 	case 'd': ship1_pos.v[0] += (key == 'a' ? 1 : -1) * 1.0f; break;
 	case 'z':
-	case 'e': ship1_pos.v[2] += (key == 'q' ? 1 : -1) * 1.0f; break;
+	case 'e': ship1_pos.v[2] += (key == 'z' ? 1 : -1) * 1.0f; break;
 	case '+': if (ship1_scale.v[1] < 9.0f && ship1_scale.v[0] < 9.0f && ship1_scale.v[2] < 9.0f)
 		ship1_scale = vec3(ship1_scale.v[0] + 1.0f, ship1_scale.v[1] + 1.0f, ship1_scale.v[2] + 1.0f);
 		break;
@@ -560,7 +590,10 @@ void keypress(unsigned char key, int x, int y) {
 		break;
 	case '1':
 	case '3':
-		camera_rotation += (key == '1' ? -1 : 1) * 20; break;
+		camera_rotation_x += (key == '1' ? -1 : 1) * 10; break;
+	case '7':
+	case '9':
+		camera_rotation_y += (key == '7' ? -1 : 1) * 10; break;
 	case '8':
 		camera_position += target_position;
 		break;

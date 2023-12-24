@@ -9,14 +9,18 @@ out vec2 TexCoord;
 out vec4 eyeCoords;
 out vec3 VtNormal;
 out vec4 ViewPosition;
+out vec3 ambientStrength;
+out vec3 specularStrength;
 
-vec4 LightPosition = vec4 (-10.0, -10.0, -4.0, 1.0); // Light position in world coords.
-vec3 Kd = vec3 (0.0, 0.8, 0.0); // green diffuse surface reflectance
+vec4 LightPosition = vec4 (0.0, 50.0, -4.0, 1.0); // Light position in world coords.
+uniform vec3 Kd = vec3 (0.0, 0.6, 0.0); // green diffuse surface reflectance
 vec3 Ld = vec3 (1.0, 1.0, 1.0); // Light source intensity
 
 uniform mat4 view;
 uniform mat4 proj;
 uniform mat4 model;
+uniform vec3 Ka;
+uniform vec3 Ks;
 
 void main(){
 
@@ -42,7 +46,7 @@ void main(){
     
   // Extract the view position from eyeCoords (without perspective division)
   ViewPosition = eyeCoords;
+
+  ambientStrength = Ka;
 }
-
-
   
