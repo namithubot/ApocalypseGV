@@ -31,19 +31,26 @@ uniform vec3 Ks;
 uniform float specular_exponent = 50.0f;
 
 const float w = 1.2f;
-const float amplitude = 0.7f;
-const float phase = 2.2f;
+const float amplitude = 0.6f;
 
 vec3  wavePosition = vec3(20,0,20);
 
 float CalculateHeight(float x, float z, vec2 direction)
 {
-    return amplitude * sin(dot(direction,vec2(x,z))*w + deltaTime*phase);
+    // Using the wave equationn now
+    float kx = 1.60f * dot(vec2(x, z), direction);
+    return amplitude * cos(kx - w * deltaTime) + (1 - amplitude) * cos(kx + w * deltaTime);
 }
 
 void main(){
 
   TexCoord = vertex_texture;
+  vec3 vertexPos = vertex_position;
+  if (isWave)
+  {
+    vec2 direction = (wavePosition-vertex_position).xz;
+    vertexPos.y  += CalculateHeight(vertex_position.x,vertex_position.z,direction);
+  }
   //ObjectPos = vertex_position;
   VtNormal = vertex_normal;
 
@@ -53,25 +60,19 @@ void main(){
   // Normal in view space
   vec3 tnorm = normalize( NormalMatrix * vertex_normal);
   // Position in view space
-  eyeCoords = ModelViewMatrix * vec4(vertex_position,1.0);
+  eyeCoords = ModelViewMatrix * vec4(vertexPos,1.0);
   // Normalised vector towards the light source
   vec3 s = normalize(vec3(LightPosition - eyeCoords));
   
-  float distance = length(LightPosition2 - vertex_position);
+  float distance = length(LightPosition2 - vertexPos);
   attenuation = 1.0 / (1 + 0.1 * distance + 
   			     0.032 * (distance * distance));
   
   // The diffuse shading equation, dot product gives us the cosine of angle between the vectors
   LightIntensity = (Ld + attenuation * Ld2) * Kd * max( dot( s, tnorm ), 0.0 );
-  
-  // Convert position to clip coordinates and pass along
-  gl_Position = proj * view * model * vec4(vertex_position,1.0);
 
-  if (isWave)
-  {
-    vec2 direction = (wavePosition-vertex_position).xz;
-    gl_Position.y  += CalculateHeight(gl_Position.x,gl_Position.z,direction);
-  }
+  // Convert position to clip coordinates and pass along
+  gl_Position = proj * view * model * vec4(vertexPos,1.0);
 
     
   // Extract the view position from eyeCoords (without perspective division)

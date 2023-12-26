@@ -315,7 +315,7 @@ void generateObjectBufferMesh(GLuint shaderProgramID, const char* texture_file_n
 	int idx = 0;
 	if (mesh_name.find("sea") != std::string::npos)
 		idx = 1;
-	if (mesh_name.find("bird") != std::string::npos)
+	if (mesh_name.find("scene") != std::string::npos)
 		idx = 2;
 
 	mesh_data[idx] = mesh_data[idx].mMeshData.size() == 0 ? load_mesh(file_location.c_str()) : mesh_data[idx];
@@ -406,7 +406,7 @@ void bindBuffer(unsigned int id, GLuint shaderProgramID)
 	int num_meshes = mesh_data[id].mMeshData.size();
 
 	int location = 0;
-	for (int i = 0; i < id; i++)
+	for (unsigned int i = 0; i < id; i++)
 	{
 		location += mesh_data[i].mMeshData.size();
 	}
@@ -568,7 +568,7 @@ void init()
 
 	// load mesh into a vertex buffer array
 	generateObjectBufferMesh(shaderProgramIDUntextured, "ocean_normal.png", "sea_tr.obj");
-	generateObjectBufferMesh(shaderProgramID, "boat_texture.jpg", "bird.dae");
+	generateObjectBufferMesh(shaderProgramID, "boat_texture.jpg", "scene.gltf");
 
 }
 
