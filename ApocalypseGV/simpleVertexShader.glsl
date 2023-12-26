@@ -11,16 +11,35 @@ out vec3 VtNormal;
 out vec4 ViewPosition;
 out vec3 ambientStrength;
 out vec3 specularStrength;
+out float reflective_index;
+out float attenuation;
 
 vec4 LightPosition = vec4 (0.0, 50.0, -4.0, 1.0); // Light position in world coords.
+vec3 LightPosition2 = vec3 (8.0, 10.0, 4.0); // Light position in world coords.
 uniform vec3 Kd = vec3 (0.0, 0.6, 0.0); // green diffuse surface reflectance
 vec3 Ld = vec3 (1.0, 1.0, 1.0); // Light source intensity
+vec3 Ld2 = vec3(1.0, 0.7, 0.3);
+
+uniform bool isWave = false;
+uniform float deltaTime;
 
 uniform mat4 view;
 uniform mat4 proj;
 uniform mat4 model;
 uniform vec3 Ka;
 uniform vec3 Ks;
+uniform float specular_exponent = 50.0f;
+
+const float w = 1.2f;
+const float amplitude = 0.7f;
+const float phase = 2.2f;
+
+vec3  wavePosition = vec3(20,0,20);
+
+float CalculateHeight(float x, float z, vec2 direction)
+{
+    return amplitude * sin(dot(direction,vec2(x,z))*w + deltaTime*phase);
+}
 
 void main(){
 
@@ -38,15 +57,28 @@ void main(){
   // Normalised vector towards the light source
   vec3 s = normalize(vec3(LightPosition - eyeCoords));
   
+  float distance = length(LightPosition2 - vertex_position);
+  attenuation = 1.0 / (1 + 0.1 * distance + 
+  			     0.032 * (distance * distance));
+  
   // The diffuse shading equation, dot product gives us the cosine of angle between the vectors
-  LightIntensity = Ld * Kd * max( dot( s, tnorm ), 0.0 );
+  LightIntensity = (Ld + attenuation * Ld2) * Kd * max( dot( s, tnorm ), 0.0 );
   
   // Convert position to clip coordinates and pass along
   gl_Position = proj * view * model * vec4(vertex_position,1.0);
+
+  if (isWave)
+  {
+    vec2 direction = (wavePosition-vertex_position).xz;
+    gl_Position.y  += CalculateHeight(gl_Position.x,gl_Position.z,direction);
+  }
+
     
   // Extract the view position from eyeCoords (without perspective division)
   ViewPosition = eyeCoords;
 
   ambientStrength = Ka;
+
+  reflective_index = specular_exponent;
 }
   

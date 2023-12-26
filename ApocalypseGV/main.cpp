@@ -73,6 +73,7 @@ unsigned int vp_vbo[MAX_NUM_BUFFER], vn_vbo[MAX_NUM_BUFFER], vt_vbo[MAX_NUM_BUFF
 unsigned int current_buffer_size = 0;
 unsigned char* imag_data[MAX_NUM_BUFFER];
 GLuint textures[MAX_NUM_BUFFER];
+float time_diff = 0;
 
 ModelData mesh_data[3];
 unsigned int mesh_vao = 0;
@@ -81,13 +82,13 @@ int height = 600;
 
 GLuint loc1, loc2, loc3;
 GLfloat rotate_x_2 = 0.0f, rotate_y = 0.0f;
-GLfloat rotate_water_y = 0.0f, rotate_water_z = 0.0f, rotate_water_x = 0.0f;
+GLfloat rotate_water_y = 0.0f, rotate_water_z = 0.0f, rotate_water_x = 180.0f;
 GLfloat rotate_z = 0.0f;
 GLfloat rotate_x = 0.0f, camera_rotation_x = 0.0f, camera_rotation_y = 0.0f;
 vec3 ship1_pos = vec3(1.0f, -4.0f, -20.0f);
 vec3 ship1_scale = vec3(2.0f, 2.0f, 2.0f);
 vec3 boat_scale = vec3(0.25f, 0.25f, 0.25f);
-vec3 boat_pos_loc = vec3(-3.0f, 3.0f, 100.0f);
+vec3 boat_pos_loc = vec3(0.0f, 3.0f, 0.0f);
 vec3 bird_scale = vec3(0.3f, 0.3f, 0.3f);
 vec3 bird_loc = vec3(0.0f, 10.0f, 2.0f);
 GLfloat fovy = 45.0f;
@@ -101,14 +102,16 @@ MESH LOADING FUNCTION
 ----------------------------------------------------------------------------*/
 
 ModelData load_mesh(const char* file_name) {
+	std::cout << file_name;
 	ModelData modelData;
+	Assimp::Importer importer;
 
 	/* Use assimp to read the model file, forcing it to be read as    */
 	/* triangles. The second flag (aiProcess_PreTransformVertices) is */
 	/* relevant if there are multiple meshes in the model file that   */
 	/* are offset from the origin. This is pre-transform them so      */
 	/* they're in the right position.                                 */
-	const aiScene* scene = aiImportFile(
+	const aiScene* scene = importer.ReadFile(
 		file_name,
 		aiProcess_Triangulate
 		| aiProcess_PreTransformVertices
@@ -119,7 +122,7 @@ ModelData load_mesh(const char* file_name) {
 
 	if (!scene) {
 		fprintf(stderr, "ERROR: reading mesh %s\n", file_name);
-		cout<<"Detailed error: "<<aiGetErrorString()<< endl;;
+		cout<<"Detailed error: "<<importer.GetErrorString()<< endl;;
 		return modelData;
 	}
 
@@ -130,7 +133,7 @@ ModelData load_mesh(const char* file_name) {
 	for (unsigned int m_i = 0; m_i < scene->mNumMeshes; m_i++) {
 		const aiMesh* mesh = scene->mMeshes[m_i];
 		printf("    %i vertices in mesh\n", mesh->mNumVertices);
-		cout << "Bone: " << mesh->HasBones() << std::endl;
+		cout << "Bone: " << mesh->mNumBones << std::endl;
 		MeshData mesh_data;
 		for (unsigned int v_i = 0; v_i < mesh->mNumVertices; v_i++) {
 			if (mesh->HasPositions()) {
@@ -188,7 +191,7 @@ ModelData load_mesh(const char* file_name) {
 		modelData.mMaterialData.push_back(material_data);
 	}
 
-	aiReleaseImport(scene);
+	importer.FreeScene();
 	return modelData;
 }
 #pragma endregion MESH LOADING
@@ -299,7 +302,7 @@ GLuint CompileShaders(string vertexShader, string fragmentShader)
 
 // VBO Functions - click on + to expand
 #pragma region VBO_FUNCTIONS
-void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = MESH_NAME) {
+void generateObjectBufferMesh(GLuint shaderProgramID, const char* texture_file_name, string mesh_name = MESH_NAME, string model_dir = "") {
 	/*----------------------------------------------------------------------------
 	LOAD MESH HERE AND COPY INTO BUFFERS
 	----------------------------------------------------------------------------*/
@@ -307,13 +310,15 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 	//Note: you may get an error "vector subscript out of range" if you are using this code for a mesh that doesnt have positions and normals
 	//Might be an idea to do a check for that before generating and binding the buffer.
 
+	string file_location = model_dir != "" ? model_dir + "\\" + mesh_name : mesh_name;
+
 	int idx = 0;
 	if (mesh_name.find("sea") != std::string::npos)
 		idx = 1;
 	if (mesh_name.find("bird") != std::string::npos)
 		idx = 2;
 
-	mesh_data[idx] = mesh_data[idx].mMeshData.size() == 0 ? load_mesh(mesh_name.c_str()) : mesh_data[idx];
+	mesh_data[idx] = mesh_data[idx].mMeshData.size() == 0 ? load_mesh(file_location.c_str()) : mesh_data[idx];
 	vp_vbo[idx] = 0;
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
 	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
@@ -354,13 +359,16 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		// load and generate the texture
 		int width, height, nrChannels;
+		string texture_file_location = model_dir != "" ? model_dir + "\\" + texture_file_name : texture_file_name;
 		if (mesh_data[idx].mMaterialData[mesh.materialIndex].hasTexture)
 		{
 			cout << mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles << std::endl;
-			texture_file_name = mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles.c_str();
+			texture_file_location = model_dir != ""
+				? model_dir + "\\" + mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles.c_str()
+				: mesh_data[idx].mMaterialData[mesh.materialIndex].mTextureFiles.c_str();
 		}
 		// stbi_set_flip_vertically_on_load(false);
-		imag_data[current_buffer_size] = stbi_load(texture_file_name, &width, &height, &nrChannels, 0);
+		imag_data[current_buffer_size] = stbi_load(texture_file_location.c_str(), &width, &height, &nrChannels, 0);
 		if (imag_data[current_buffer_size])
 		{
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, imag_data[current_buffer_size]);
@@ -368,7 +376,7 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 		}
 		else
 		{
-			std::cout << "Failed to load texture " << texture_file_name << std::endl;
+			std::cout << "Failed to load texture " << texture_file_location << std::endl;
 		}
 		stbi_image_free(imag_data[current_buffer_size]);
 
@@ -388,7 +396,7 @@ void generateObjectBufferMesh(const char* texture_file_name, string mesh_name = 
 
 #pragma region LOAD_BUFFER
 
-void bindBuffer(unsigned int id)
+void bindBuffer(unsigned int id, GLuint shaderProgramID)
 {
 	glUniform1f(glGetUniformLocation(shaderProgramID, "id"), 1.0f);
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
@@ -498,20 +506,28 @@ void display() {
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
 	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
-	bindBuffer(0);
+	bindBuffer(0, shaderProgramID);
 
-	//glUseProgram(shaderProgramIDUntextured);
+	glUseProgram(shaderProgramIDUntextured);
+	matrix_location = glGetUniformLocation(shaderProgramIDUntextured, "model");
+	view_mat_location = glGetUniformLocation(shaderProgramIDUntextured, "view");
+	proj_mat_location = glGetUniformLocation(shaderProgramIDUntextured, "proj");
 	//// Set up the child matrix
 	mat4 modelChild = identity_mat4();
 	modelChild = translate(modelChild, boat_pos_loc);
 
 	// Apply the root matrix to the child matrix
-	// modelChild = model * modelChild;
+	//modelChild = model * modelChild;
 	modelChild = scale(modelChild, boat_scale);
+	modelChild = rotate_x_deg(modelChild, rotate_water_x);
 
 	//// Update the appropriate uniform and draw the mesh again
+	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
+	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, modelChild.m);
-	bindBuffer(1);
+	glUniform1i(glGetUniformLocation(shaderProgramIDUntextured, "isWave"), true);
+	glUniform1f(glGetUniformLocation(shaderProgramIDUntextured, "deltaTime"), time_diff);
+	bindBuffer(1, shaderProgramIDUntextured);
 
 	glutSwapBuffers();
 }
@@ -519,16 +535,20 @@ void display() {
 
 void updateScene() {
 
-	//static DWORD last_time = 0;
-	//DWORD curr_time = timeGetTime();
-	//if (last_time == 0)
-	//	last_time = curr_time;
-	//float delta = (curr_time - last_time) * 0.001f;
-	//last_time = curr_time;
+	static DWORD last_time = 0;
+	DWORD curr_time = timeGetTime();
+	if (last_time == 0)
+		last_time = curr_time;
+	float delta = (curr_time - last_time) * 0.001f;
+	last_time = curr_time;
 
 	//// Rotate the model slowly around the y axis at 20 degrees per second
 	//rotate_y_2 += 20.0f * delta;
 	//rotate_y_2 = fmodf(rotate_y_2, 360.0f);
+	//boat_pos_loc.v[1] += glm::sin(10.0f * delta);
+	// rotate_water_x = fmodf(rotate_water_x, 360.0f);
+	//boat_pos_loc.v[1] = fmodf(boat_pos_loc.v[1], 3.0f);
+	time_diff += delta;
 
 	// Draw the next frame
 	glutPostRedisplay();
@@ -539,13 +559,16 @@ void init()
 {
 	// Set up the shaders
 	shaderProgramID = CompileShaders("simpleVertexShader.glsl", "simpleFragmentShader.glsl");
-	shaderProgramIDUntextured = CompileShaders("simpleVertexShader.glsl", "unTexturedFragmentShader.glsl");
+	generateObjectBufferMesh(shaderProgramID, "boat_texture.jpg", "castle_blended.obj", "castle");
+
+
+	shaderProgramIDUntextured = CompileShaders("simpleVertexShader.glsl", "simpleFragmentShader.glsl");
+	std::cout << shaderProgramIDUntextured << std::endl;
 
 
 	// load mesh into a vertex buffer array
-	generateObjectBufferMesh("boat_texture.jpg", "castle_blended.obj");
-	generateObjectBufferMesh("ocean_normal.png", "sea_tr.obj");
-	generateObjectBufferMesh("boat_texture.jpg", "bird.blend");
+	generateObjectBufferMesh(shaderProgramIDUntextured, "ocean_normal.png", "sea_tr.obj");
+	generateObjectBufferMesh(shaderProgramID, "boat_texture.jpg", "bird.dae");
 
 }
 
