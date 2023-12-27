@@ -48,8 +48,10 @@ void main(){
   vec3 vertexPos = vertex_position;
   if (isWave)
   {
-    vec2 direction = (wavePosition-vertex_position).xz;
-    vertexPos.y  += CalculateHeight(vertex_position.x,vertex_position.z,direction);
+    vec3 direction = wavePosition-vertex_position;
+    vertexPos.x  += CalculateHeight(vertex_position.y,vertex_position.z,direction.yz);
+    vertexPos.y  += CalculateHeight(vertex_position.z,vertex_position.x,direction.xz);
+    vertexPos.z  += CalculateHeight(vertex_position.x,vertex_position.y,direction.xy);
   }
   //ObjectPos = vertex_position;
   VtNormal = vertex_normal;
