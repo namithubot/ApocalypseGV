@@ -175,12 +175,12 @@ ModelData load_mesh(const char* file_name) {
 		material->Get(AI_MATKEY_COLOR_AMBIENT, ambient);
 		material_data.mAmbient = vec3(ambient.r, ambient.g, ambient.b);
 
-		material->Get(AI_MATKEY_COLOR_AMBIENT, specular);
-		material_data.mAmbient = vec3(specular.r, specular.g, specular.b);
+		material->Get(AI_MATKEY_COLOR_SPECULAR, specular);
+		material_data.mSpec = vec3(specular.r, specular.g, specular.b);
 
 
-		material->Get(AI_MATKEY_COLOR_AMBIENT, diffuse);
-		material_data.mAmbient = vec3(diffuse.r, diffuse.g, diffuse.b);
+		material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse);
+		material_data.mDiffuse = vec3(diffuse.r, diffuse.g, diffuse.b);
 
 		float reflective_index;
 		material->Get(AI_MATKEY_SHININESS, reflective_index);
@@ -586,7 +586,7 @@ void init()
 {
 	// Set up the shaders
 	shaderProgramID = CompileShaders("simpleVertexShader.glsl", "simpleFragmentShader.glsl");
-	generateObjectBufferMesh(shaderProgramID, "boat_texture.jpg", "castle_blended.obj", "castle");
+	generateObjectBufferMesh(shaderProgramID, "ocean_normal.png", "castle_blended.obj", "castle");
 	generateObjectBufferMesh(shaderProgramID, "Beriev_2048.png", "plane.obj", "Beriev_A50");
 
 	shaderProgramIDUntextured = CompileShaders("simpleVertexShader.glsl", "simpleFragmentShader.glsl");

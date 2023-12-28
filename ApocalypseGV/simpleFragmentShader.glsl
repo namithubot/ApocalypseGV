@@ -11,8 +11,8 @@ in float reflective_index;
 in float attenuation;
 uniform sampler2D texture1;
 
-vec4 LightPosition = vec4(0.0, 50.0, -4.0, 1.0);
-vec3 LightPosition2 = vec3 (8.0, 10.0, 4.0);
+vec4 LightPosition = vec4(0.0, -50.0, -4.0, 1.0);
+vec3 LightPosition2 = vec3 (8.0, -10.0, 4.0);
 vec3 light_color = vec3(1.0, 1.0, 1.0);
 vec3 yellow_light = vec3(1.0, 1.0, 0.0);
 

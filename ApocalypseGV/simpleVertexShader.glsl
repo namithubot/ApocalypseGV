@@ -14,8 +14,8 @@ out vec3 specularStrength;
 out float reflective_index;
 out float attenuation;
 
-vec4 LightPosition = vec4 (0.0, 50.0, -4.0, 1.0); // Light position in world coords.
-vec3 LightPosition2 = vec3 (8.0, 10.0, 4.0); // Light position in world coords.
+vec4 LightPosition = vec4 (0.0, -50.0, -4.0, 1.0); // Light position in world coords.
+vec3 LightPosition2 = vec3 (8.0, -10.0, 4.0); // Light position in world coords.
 uniform vec3 Kd = vec3 (0.0, 0.6, 0.0); // green diffuse surface reflectance
 vec3 Ld = vec3 (1.0, 1.0, 1.0); // Light source intensity
 vec3 Ld2 = vec3(1.0, 0.7, 0.3);
@@ -83,5 +83,9 @@ void main(){
   ambientStrength = Ka;
 
   reflective_index = specular_exponent;
+
+  if (isWave) {
+    reflective_index = reflective_index * 2;
+  }
 }
   
