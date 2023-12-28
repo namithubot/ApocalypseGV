@@ -81,7 +81,7 @@ unsigned int mesh_vao = 0;
 int width = 800;
 int height = 600;
 int boat_direction = 1;
-bool is_moving = false;
+bool is_moving = true;
 float rotate_y_2 = 0.0f;
 
 GLuint loc1, loc2, loc3;
@@ -519,8 +519,6 @@ void display() {
 	boatModel = scale(boatModel, boat_scale);
 	for (int i = 0; i < 10; i++)
 	{
-		float z = boat_location.v[2] +
-			is_moving ? (time_diff * boat_direction/2.0f) : 0;
 
 		boatModel = translate(boatModel,
 			vec3(boat_location.v[0] + i, boat_location.v[1], boat_location.v[2]));
@@ -570,8 +568,11 @@ void updateScene() {
 	last_time = curr_time;
 
 	//// Rotate the model slowly around the y axis at 20 degrees per second
-	rotate_y_2 += 20.0f * delta;
-	rotate_y_2 = fmodf(rotate_y_2, 360.0f);
+	if (is_moving)
+	{
+		rotate_y_2 += 20.0f * delta;
+		rotate_y_2 = fmodf(rotate_y_2, 360.0f);
+	}
 	//boat_pos_loc.v[1] += glm::sin(10.0f * delta);
 	// rotate_water_x = fmodf(rotate_water_x, 360.0f);
 	//boat_pos_loc.v[1] = fmodf(boat_pos_loc.v[1], 3.0f);

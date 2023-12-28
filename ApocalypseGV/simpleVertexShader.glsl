@@ -35,7 +35,7 @@ const float amplitude = 0.6f;
 
 vec3  wavePosition = vec3(20,0,20);
 
-float CalculateHeight(float x, float z, vec2 direction)
+float CalculateAmplitude(float x, float z, vec2 direction)
 {
     // Using the wave equationn now
     float kx = 1.60f * dot(vec2(x, z), direction);
@@ -49,9 +49,9 @@ void main(){
   if (isWave)
   {
     vec3 direction = wavePosition-vertex_position;
-    vertexPos.x  += CalculateHeight(vertex_position.y,vertex_position.z,direction.yz);
-    vertexPos.y  += CalculateHeight(vertex_position.z,vertex_position.x,direction.xz);
-    vertexPos.z  += CalculateHeight(vertex_position.x,vertex_position.y,direction.xy);
+    vertexPos.x  += CalculateAmplitude(vertex_position.y,vertex_position.z,direction.yz);
+    vertexPos.y  += CalculateAmplitude(vertex_position.z,vertex_position.x,direction.xz);
+    vertexPos.z  += CalculateAmplitude(vertex_position.x,vertex_position.y,direction.xy);
   }
   //ObjectPos = vertex_position;
   VtNormal = vertex_normal;
